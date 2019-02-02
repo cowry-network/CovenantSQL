@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package main
+package observer
 
 import (
 	"context"
@@ -47,10 +47,6 @@ func sendResponse(code int, success bool, msg interface{}, data interface{}, rw 
 		"success": success,
 		"data":    data,
 	})
-}
-
-func notSupported(rw http.ResponseWriter, _ *http.Request) {
-	sendResponse(500, false, fmt.Sprintf("not supported in %v", version), nil, rw)
 }
 
 type explorerAPI struct {
@@ -650,7 +646,7 @@ func (a *explorerAPI) getHash(vars map[string]string) (h *hash.Hash, err error) 
 	return hash.NewHashFromStr(hStr)
 }
 
-func startAPI(service *Service, listenAddr string) (server *http.Server, err error) {
+func startAPI(service *Service, listenAddr string, version string) (server *http.Server, err error) {
 	router := mux.NewRouter()
 	router.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
 		sendResponse(http.StatusOK, true, nil, map[string]interface{}{
@@ -663,7 +659,11 @@ func startAPI(service *Service, listenAddr string) (server *http.Server, err err
 	}
 	v1Router := router.PathPrefix("/v1").Subrouter()
 	v1Router.HandleFunc("/ack/{db}/{hash}", api.GetAck).Methods("GET")
-	v1Router.HandleFunc("/offset/{db}/{offset:[0-9]+}", notSupported).Methods("GET")
+	v1Router.HandleFunc("/offset/{db}/{offset:[0-9]+}",
+		func(writer http.ResponseWriter, request *http.Request) {
+			sendResponse(500, false, fmt.Sprintf("not supported in %v", version), nil, writer)
+		},
+	).Methods("GET")
 	v1Router.HandleFunc("/request/{db}/{hash}", api.GetRequest).Methods("GET")
 	v1Router.HandleFunc("/block/{db}/{hash}", api.GetBlock).Methods("GET")
 	v1Router.HandleFunc("/count/{db}/{count:[0-9]+}", api.GetBlockByCount).Methods("GET")
